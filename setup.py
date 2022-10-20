@@ -17,7 +17,7 @@ description="Laser Aided Profiler Data Access Library"
 
 setup(
 	name="lap_data",
-	version="4.0.0",
+	version="4.0.1",
 	description=description,
 	long_description=description,
 	long_description_content_type="text/markdown",
@@ -36,7 +36,7 @@ setup(
 	packages=find_packages(where="src"),
 	python_requires=">=3.10, <4",
 	install_requires=[
-		'deposit_gui>=1.4.3, <1.5',
+		'deposit_gui>=1.4.31, <1.5',
 	],
 	cmdclass={'bdist_wheel': bdist_wheel},
 )
