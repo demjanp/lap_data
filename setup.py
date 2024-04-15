@@ -17,7 +17,7 @@ description="Laser Aided Profiler Data Access Library"
 
 setup(
 	name="lap_data",
-	version="4.0.46",
+	version="4.0.47",
 	description=description,
 	long_description=description,
 	long_description_content_type="text/markdown",
