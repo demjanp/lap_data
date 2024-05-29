@@ -4,6 +4,17 @@
 
 from setuptools import setup, find_packages
 
+import ast
+import os
+
+def get_version():
+	with open(os.path.join(os.path.dirname(__file__), 'src', 'lap_data', '__init__.py')) as f:
+		tree = ast.parse(f.read())
+		for node in tree.body:
+			if isinstance(node, ast.Assign):
+				if node.targets[0].id == 'version_info':
+					return '.'.join(map(str, ast.literal_eval(node.value)))
+
 try:
 	from wheel.bdist_wheel import bdist_wheel as _bdist_wheel
 	class bdist_wheel(_bdist_wheel):
@@ -17,7 +28,7 @@ description="Laser Aided Profiler Data Access Library"
 
 setup(
 	name="lap_data",
-	version="4.0.47",
+	version=get_version(),
 	description=description,
 	long_description=description,
 	long_description_content_type="text/markdown",

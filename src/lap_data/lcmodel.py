@@ -205,7 +205,37 @@ class LCModel(DCModel):
 					descriptors.append((name, class2, descr))
 				relations.add((class1, rel, class2))
 		
+		# add class relations to relations
+		for class1 in classes:
+			cls1 = self.get_class(class1)
+			if cls1 is None:
+				continue
+			for cls2, label in cls1.get_relations():
+				if cls2.name not in classes:
+					continue
+				row = (class1, label, cls2.name)
+				if row in relations:
+					continue
+				relations.add(row)
+		
 		return classes, descriptors, relations
+	
+	def get_arc_structure(self):
+		
+		arc_cls, arc_descr, arc_rel = None, None, None
+		_, descriptors, relations = self.get_data_structure()
+		for name, cls, descr in descriptors:
+			if name == "Arc_Geometry":
+				arc_cls, arc_descr = cls, descr
+				break
+		for cls1, rel, cls2 in relations:
+			if cls1 == arc_cls:
+				arc_rel = self.reverse_relation(rel)
+				break
+			elif cls2 == arc_cls:
+				arc_rel = rel
+				break
+		return arc_cls, arc_descr, arc_rel
 	
 	def create_data_structure(self):
 		# returns descr_lookup, relations
