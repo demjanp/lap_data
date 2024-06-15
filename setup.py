@@ -47,7 +47,7 @@ setup(
 	packages=find_packages(where="src"),
 	python_requires=">=3.10, <4",
 	install_requires=[
-		'deposit_gui>=1.4.47, <1.5',
+		'deposit_gui>=1.5.0, <2',
 	],
 	cmdclass={'bdist_wheel': bdist_wheel},
 )
