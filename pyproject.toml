@@ -1,3 +1,39 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=66.1.0", "wheel", "setuptools_scm[toml]>=6.0"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "lap_data"
+description = "Laser Aided Profiler Data Access Library"
+readme = "README.md"
+requires-python = ">=3.10, <4"
+license = {text = "GNU General Public License v3 (GPLv3)"}
+authors = [
+    {name = "Peter Demján", email = "peter.demjan@gmail.com"}
+]
+keywords = ["database", "graph"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Topic :: Database",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: Microsoft :: Windows :: Windows 10"
+]
+dynamic = ["version"]
+dependencies = [
+	'deposit_gui>=1.6.0, <2',
+]
+
+[project.urls]
+homepage = "https://github.com/demjanp/lap_data"
+
+[tool.setuptools]
+packages = ["lap_data"]
+include-package-data = true
+
+[tool.setuptools_scm]
+write_to = "src/lap_data/_version.py"
+
+[tool.setuptools.package-data]
+"deposit_gui" = []
