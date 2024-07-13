@@ -1,8 +1,6 @@
 from deposit_gui.dgui.dcmodel import DCModel
 
 from deposit import (AbstractDType)
-from deposit.datasource import (AbstractDatasource, Memory)
-from deposit.utils.fnc_files import (as_url)
 from deposit.query.parse import (remove_bracketed_all)
 
 from collections import defaultdict
@@ -406,7 +404,7 @@ class LCModel(DCModel):
 		_, added = self.add_data_row(
 			row_data, 
 			relations, 
-			unique = set([primary_cls]), 
+			unique ={primary_cls},
 			existing = {primary_cls: primary_obj},
 			return_added = True,
 		)
@@ -481,7 +479,7 @@ class LCModel(DCModel):
 		for cls1 in rel_primary:
 			chain = [(rel_primary[cls1], cls1)]
 			cls_last = cls1
-			done = set([cls1])
+			done = {cls1}
 			while True:
 				found = False
 				for cls1_, rel, cls2 in rel_other:
