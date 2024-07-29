@@ -336,14 +336,15 @@ class LCModel(DCModel):
 			)
 			if not obj_classes:
 				continue
-			if rel not in set([rel_lookup[cls] for cls in obj_classes]):
+			is_default = len(obj_classes.intersection(default_classes)) > 0
+			if (not is_default) and (rel not in set([rel_lookup[cls] for cls in obj_classes])):
 				continue
 			has_other_rels = False
 			for obj2, _ in obj_tgt.get_relations():
 				if obj2 != primary_obj:
 					has_other_rels = True
 					break
-			if (not has_other_rels) and obj_classes.intersection(default_classes):
+			if (not has_other_rels) and is_default:
 				to_del_objs.add(obj_tgt.id)
 			else:
 				to_del_rels.add((obj_tgt, rel))
@@ -444,136 +445,49 @@ class LCModel(DCModel):
 			self.on_changed(objects_changed, classes_changed)
 			self.on_added(objects_added, [])
 			self.on_deleted(objects_deleted, [])
-		
-	def get_load_lookups(self):
-		# returns name_lookup, class_descriptors, primary_class, rel_primary, rel_chains
-		# name_lookup = {(Class, Descriptor): name, ...}
-		# class_descriptors = {Class: [Descriptor, ...], ...}
-		# primary_class = name of Sample class
-		# rel_primary = {Class: relation, ...}
-		
-		_, descriptors, relations = self.get_data_structure()
-		# descriptors = [(name, Class, Descriptor), ...]
-		# relations = set((Class1, Relation, Class2), ...)
-		
-		name_lookup = {}  # {(Class, Descriptor): name, ...}
-		class_descriptors = defaultdict(set)  # {Class: [Descriptor, ...], ...}
-		primary_class = None
-		for name, cls, descr in descriptors:
-			name_lookup[(cls, descr)] = name
-			class_descriptors[cls].add(descr)
-			if name == self.NAME_ID:
-				primary_class = cls
-		rel_primary = {}
-		rel_other = set()
-		for cls1, rel, cls2 in relations:
-			if cls1 == primary_class:
-				rel_primary[cls2] = rel
-			elif cls2 == primary_class:
-				rel_primary[cls1] = self.reverse_relation(rel)
-			else:
-				rel_other.add((cls1, rel, cls2))
-				rel_other.add((cls2, self.reverse_relation(rel), cls1))
-		
-		rel_chains = []
-		for cls1 in rel_primary:
-			chain = [(rel_primary[cls1], cls1)]
-			cls_last = cls1
-			done = {cls1}
-			while True:
-				found = False
-				for cls1_, rel, cls2 in rel_other:
-					if cls2 in done:
-						continue
-					if cls1_ == cls_last:
-						chain.append((rel, cls2))
-						done.add(cls2)
-						cls_last = cls2
-						found = True
-				if not found:
-					break
-			if len(chain) > 1:
-				rel_chains.append(chain)
-		
-		return name_lookup, class_descriptors, primary_class, rel_primary, rel_chains
 	
-	def load_object_data(
-		self, obj_id, name_lookup, class_descriptors, 
-		primary_class, rel_primary, rel_chains,
-	):
+	def load_object_data(self, obj_id, name_lookup, primary_class):
 		# name_lookup = {(Class, Descriptor): name, ...}
-		# class_descriptors = {Class: [Descriptor, ...], ...}
 		# primary_class = name of Sample class
-		# rel_primary = {Class: relation, ...}
-		# rel_chains = [[(relation, Class), ...], ...]
 		
-		def get_chained(obj, label, cls):
-			
-			for obj_tgt, label_ in obj.get_relations():
-				if label_ == label:
-					return obj_tgt
-			return None
+		existing_classes = self.get_class_names()
 		
-		def collect_data(key, name_lookup, value, data, data_rel):
-			
-			if value is None:
-				return
-			group = None
+		primary_selects = set()
+		secondary_selects = defaultdict(set)
+		for key in name_lookup:
+			class_name, descr_name = key
+			if (class_name not in existing_classes) or (descr_name not in existing_classes):
+				continue
+			select = f"[{class_name}].[{descr_name}]"
 			if name_lookup[key] in self._multi_descriptors:
 				group = self._multi_descriptors[name_lookup[key]]
-			if group is None:
-				data[name_lookup[key]] = value
+				secondary_selects[group].add(select)
 			else:
-				if group not in data_rel:
-					data_rel[group] = {}
-				data_rel[group][name_lookup[key]] = value
+				primary_selects.add(select)
 		
-		rel_classes = set([cls for cls, _ in name_lookup.keys()])
-		primary_rels = set(rel_primary.values())
-		chain_classes = set()
-		for chain in rel_chains:
-			label, cls = chain[0]
-			primary_rels.add(label)
-			chain_classes.add(cls)
-		
+		querystr = "SELECT %s WHERE ([%s])==%d" % (", ".join(list(primary_selects)), primary_class, obj_id)
+		result = self.get_query(querystr, silent = True)
+		if not len(result):
+			return {}
 		data = {}
-		obj = self.get_object(obj_id)
+		for idx, key in enumerate(result.columns):
+			data[name_lookup[key]] = result[0, idx][1]
 		
-		for descr in obj.get_descriptors():
-			key = (primary_class, descr.name)
-			if key in name_lookup:
-				data[name_lookup[key]] = obj.get_descriptor(descr)
-		
-		for obj_tgt, label in obj.get_relations():
-			if label not in primary_rels:
+		for group in secondary_selects:
+			querystr = "SELECT [%s], %s WHERE ([%s])==%d" % (primary_class, ", ".join(list(secondary_selects[group])), primary_class, obj_id)
+			result = self.get_query(querystr, silent = True)
+			if not len(result):
 				continue
-			
-			data_rel = {}
-			
-			obj_classes = set([cls.name for cls in obj_tgt.get_classes()])
-			for cls in rel_classes.intersection(obj_classes):
-				for descr in obj_tgt.get_descriptors():
-					key = (cls, descr.name)
-					if key in name_lookup:
-						collect_data(key, name_lookup, obj_tgt.get_descriptor(descr), data, data_rel)
-			
-			for cls in chain_classes.intersection(obj_classes):
-				for chain in rel_chains:
-					if chain[0] != (label, cls):
+			if group not in data:
+				data[group] = []
+			for row in result:
+				item = {}
+				for idx, key in enumerate(result.columns):
+					if key not in name_lookup:
 						continue
-					for label2, cls2 in chain[1:]:
-						obj_tgt = get_chained(obj_tgt, label2, cls2)
-						if obj_tgt is None:
-							continue
-						for descr in obj_tgt.get_descriptors():
-							key = (cls2, descr.name)
-							if key in name_lookup:
-								collect_data(key, name_lookup, obj_tgt.get_descriptor(descr), data, data_rel)
-			
-			for cls in data_rel:
-				if cls not in data:
-					data[cls] = []
-				data[cls].append(data_rel[cls])
+					item[name_lookup[key]] = row[idx][1]
+				if item:
+					data[group].append(item)
 		
 		return data
 	
@@ -581,13 +495,19 @@ class LCModel(DCModel):
 		# returns data
 		#	data = {name: value, key: [{name: value, ...}, ...], ...}
 		
-		name_lookup, class_descriptors, primary_class, rel_primary, rel_chains = \
-			self.get_load_lookups()
+		_, descriptors, _ = self.get_data_structure()
+		# descriptors = [(name, Class, Descriptor), ...]
 		
-		data = self.load_object_data(
-			obj_id, name_lookup, class_descriptors, 
-			primary_class, rel_primary, rel_chains,
-		)
+		name_lookup = {}  # {(Class, Descriptor): name, ...}
+		primary_class = None # name of Sample class
+		for name, cls, descr in descriptors:
+			name_lookup[(cls, descr)] = name
+			if name == self.NAME_ID:
+				primary_class = cls
+		if primary_class is None:
+			raise Exception("Sample Class not found")
+		
+		data = self.load_object_data(obj_id, name_lookup, primary_class)
 		
 		return data
 	
