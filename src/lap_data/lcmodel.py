@@ -475,6 +475,8 @@ class LCModel(DCModel):
 			return {}
 		data = {}
 		for idx, key in enumerate(result.columns):
+			if result[0, idx][1] is None:
+				continue
 			data[name_lookup[key]] = result[0, idx][1]
 		
 		for group in secondary_selects:
@@ -488,6 +490,8 @@ class LCModel(DCModel):
 				item = {}
 				for idx, key in enumerate(result.columns):
 					if key not in name_lookup:
+						continue
+					if row[idx][1] is None:
 						continue
 					item[name_lookup[key]] = row[idx][1]
 				if item:
