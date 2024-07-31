@@ -420,6 +420,9 @@ class LCModel(DCModel):
 			elif cls2 == primary_cls:
 				rel_lookup[cls1] = rel
 		
+		default_classes, _, _ = self.get_data_structure(default_only = True)
+		default_classes = set(default_classes)
+		
 		for key in data:
 			if isinstance(data[key], list):
 				for item in data[key]:
@@ -430,6 +433,7 @@ class LCModel(DCModel):
 					_, added = self.add_data_row(
 						row_data, 
 						relations,
+						unique = default_classes,
 						return_added = True,
 					)
 					for cls in added:
