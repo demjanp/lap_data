@@ -22,7 +22,7 @@ classifiers = [
 ]
 dynamic = ["version"]
 dependencies = [
-	'deposit_gui>=1.6.27, <2',
+	'deposit_gui>=1.6.28, <2',
 ]
 
 [project.urls]
