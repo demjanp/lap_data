@@ -1,4 +1,4 @@
 from ._version import version as __version__
 
 title = 'Laser Aided Profiler Data Access Library'
-date = "07.08.2024"
+date = "26.08.2024"
