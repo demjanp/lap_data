@@ -220,17 +220,19 @@ class LCModel(DCModel):
 	
 	def get_arc_structure(self):
 		
+		sample_cls = None
 		arc_cls, arc_descr, arc_rel = None, None, None
 		_, descriptors, relations = self.get_data_structure()
 		for name, cls, descr in descriptors:
-			if name == "Arc_Geometry":
+			if name == self.NAME_ID:
+				sample_cls = cls
+			elif name == "Arc_Geometry":
 				arc_cls, arc_descr = cls, descr
-				break
 		for cls1, rel, cls2 in relations:
-			if cls1 == arc_cls:
+			if (cls1 == arc_cls) and (cls2 == sample_cls):
 				arc_rel = self.reverse_relation(rel)
 				break
-			elif cls2 == arc_cls:
+			elif (cls1 == sample_cls) and (cls2 == arc_cls):
 				arc_rel = rel
 				break
 		return arc_cls, arc_descr, arc_rel
