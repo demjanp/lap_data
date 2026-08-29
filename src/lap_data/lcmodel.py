@@ -476,18 +476,21 @@ class LCModel(DCModel):
 			else:
 				primary_selects.add(select)
 		
-		querystr = "SELECT %s WHERE ([%s])==%d" % (", ".join(list(primary_selects)), primary_class, obj_id)
+		selects = [f"[{primary_class}]"] + sorted(primary_selects)
+		querystr = "SELECT %s WHERE ([%s])==%d" % (", ".join(selects), primary_class, obj_id)
 		result = self.get_query(querystr, silent = True)
 		if not len(result):
 			return {}
 		data = {}
 		for idx, key in enumerate(result.columns):
+			if key not in name_lookup:
+				continue
 			if result[0, idx][1] is None:
 				continue
 			data[name_lookup[key]] = result[0, idx][1]
 		
 		for group in secondary_selects:
-			querystr = "SELECT [%s], %s WHERE ([%s])==%d" % (primary_class, ", ".join(list(secondary_selects[group])), primary_class, obj_id)
+			querystr = "SELECT [%s], %s WHERE ([%s])==%d" % (primary_class, ", ".join(sorted(secondary_selects[group])), primary_class, obj_id)
 			result = self.get_query(querystr, silent = True)
 			if not len(result):
 				continue
