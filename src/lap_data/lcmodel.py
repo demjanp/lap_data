@@ -64,25 +64,31 @@ class LCModel(DCModel):
 				["Detail_Dashed",			"Sample.Drawn.Detail.Dashed"],
 				["Detail_Fill_Color",		"Sample.Drawn.Detail.Fill_Color"],
 				["Detail_Line_Color",		"Sample.Drawn.Detail.Line_Color"],
+				["Detail_Order",			"Sample.Drawn.Detail.Order"],
 				["Break_Geometry",			"Sample.Drawn.Break.Geometry"],
 				["Inflection_Geometry",		"Sample.Drawn.Inflection.Geometry"],
 				["Inflection_Dashed",		"Sample.Drawn.Inflection.Dashed"],
+				["Inflection_Order",		"Sample.Drawn.Inflection.Order"],
 				["Arc_Geometry",			"Sample.Drawn.Arc.Geometry"],
 				["Photo_Image",				"Sample.Drawn.Photo.Image"],
 				["Photo_Mask",				"Sample.Drawn.Photo.Mask"],
 				["Photo_Position",			"Sample.Drawn.Photo.Position"],
 				["Photo_Angle",				"Sample.Drawn.Photo.Angle"],
 				["Photo_Scale",				"Sample.Drawn.Photo.Scale"],
+				["Photo_Order",				"Sample.Drawn.Photo.Order"],
 				["RTI_Image",				"Sample.Drawn.RTI.Image"],
 				["RTI_Data",				"Sample.Drawn.RTI.Data"],
 				["RTI_Position",			"Sample.Drawn.RTI.Position"],
 				["RTI_Angle",				"Sample.Drawn.RTI.Angle"],
 				["RTI_Scale",				"Sample.Drawn.RTI.Scale"],
+				["RTI_Order",				"Sample.Drawn.RTI.Order"],
 				["Annotation_Geometry",		"Sample.Drawn.Annotation.Geometry"],
 				["Annotation_Name",			"Sample.Drawn.Annotation.Name"],
+				["Annotation_Order",		"Sample.Drawn.Annotation.Order"],
 				["Measure_Geometry",		"Sample.Drawn.Measure.Geometry"],
 				["Measure_Name",			"Sample.Drawn.Measure.Name"],
 				["Measure_Value",			"Sample.Drawn.Measure.Value"],
+				["Measure_Order",			"Sample.Drawn.Measure.Order"],
 			]:
 				self._default_descriptors.append([name, chain])
 				parsed = self.parse_chain(chain)
@@ -565,8 +571,6 @@ class LCModel(DCModel):
 		return query
 	
 	def get_descriptor_values(self):
-		# direct_only = if True, don't return members of subclasses
-		#
 		# returns {name: [value, ...], ...}
 		
 		_, descriptors, _ = self.get_data_structure()
