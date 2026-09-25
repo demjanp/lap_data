@@ -88,7 +88,9 @@ class LCModel(DCModel):
 				["Measure_Geometry",		"Sample.Drawn.Measure.Geometry"],
 				["Measure_Name",			"Sample.Drawn.Measure.Name"],
 				["Measure_Value",			"Sample.Drawn.Measure.Value"],
-				["Measure_Order",			"Sample.Drawn.Measure.Order"],
+				["Detail_Tag",				"Detail.Tagged.Tag.Name"],
+				["Photo_Tag",				"Photo.Tagged.Tag.Name"],
+				["RTI_Tag",					"RTI.Tagged.Tag.Name"],
 			]:
 				self._default_descriptors.append([name, chain])
 				parsed = self.parse_chain(chain)
@@ -96,6 +98,20 @@ class LCModel(DCModel):
 					self._multi_descriptors[name] = parsed[2]
 		
 		return self._default_descriptors
+
+	def get_tag_descriptors(self):
+		specs = {}
+		for name, chain in self.get_default_descriptors():
+			if name.endswith("_Tag"):
+				specs[name] = self.parse_chain(chain)
+		return specs
+
+	def load_tags(self, owner, spec):
+		_, relation, tag_class, descriptor = spec
+		names = [target.get_descriptor(descriptor)
+			for target, label in owner.get_relations()
+			if label == relation and tag_class in {cls.name for cls in target.get_classes()}]
+		return natsorted(names)
 	
 	def get_default_attributes(self):
 		# returns [(label, ctrl_type, name), ...]
@@ -342,6 +358,7 @@ class LCModel(DCModel):
 		rel_classes = set(rel_lookup.keys())
 		to_del_rels = set()
 		to_del_objs = set()
+		tag_specs = list(self.get_tag_descriptors().values())
 		for obj_tgt, rel in primary_obj.get_relations():
 			obj_classes = set(obj_tgt.get_classes())
 			obj_classes = rel_classes.intersection(
@@ -353,7 +370,11 @@ class LCModel(DCModel):
 			if (not is_default) and (rel not in set([rel_lookup[cls] for cls in obj_classes])):
 				continue
 			has_other_rels = False
-			for obj2, _ in obj_tgt.get_relations():
+			for obj2, label in obj_tgt.get_relations():
+				if any(source in obj_classes and label == relation and
+					target in {cls.name for cls in obj2.get_classes()}
+					for source, relation, target, _ in tag_specs):
+					continue
 				if obj2 != primary_obj:
 					has_other_rels = True
 					break
@@ -379,6 +400,15 @@ class LCModel(DCModel):
 				return int(value)
 			return value
 		
+		tag_specs = self.get_tag_descriptors()
+		tag_lookup = {}
+		for cls_name, descriptor in {(spec[2], spec[3]) for spec in tag_specs.values()}:
+			cls = self.get_class(cls_name)
+			if cls is not None:
+				for obj in sorted(cls.get_members(), key=lambda obj: obj.id):
+					name = obj.get_descriptor(descriptor)
+					tag_lookup.setdefault((cls_name, descriptor, name), obj)
+
 		objects_changed = set()
 		classes_changed = set()
 		objects_added = set()
@@ -442,6 +472,8 @@ class LCModel(DCModel):
 					row_data = {}
 					for key2 in item:
 						name, _ = key2
+						if name in tag_specs:
+							continue
 						row_data[descr_lookup[name]] = convert_value(item[key2])
 					_, added = self.add_data_row(
 						row_data, 
@@ -454,6 +486,21 @@ class LCModel(DCModel):
 						if cls in rel_lookup:
 							added[cls].add_relation(primary_obj, rel_lookup[cls])
 						objects_added.add(added[cls].id)
+					for (name, _), values in item.items():
+						if name not in tag_specs:
+							continue
+						source, relation, target, descriptor = tag_specs[name]
+						owner = added[source]
+						for value in values:
+							key_tag = (target, descriptor, value)
+							if key_tag not in tag_lookup:
+								tag = self.get_class(target).add_member()
+								tag.set_descriptor(descriptor, value)
+								tag_lookup[key_tag] = tag
+								objects_added.add(tag.id)
+							tag = tag_lookup[key_tag]
+							owner.add_relation(tag, relation)
+							objects_changed.add(tag.id)
 		if (not silent) and (self._progress is not None):
 			self._progress.update_state(value = 3)
 			self._progress.stop()
@@ -496,13 +543,33 @@ class LCModel(DCModel):
 			data[name_lookup[key]] = result[0, idx][1]
 		
 		for group in secondary_selects:
-			querystr = "SELECT [%s], %s WHERE ([%s])==%d" % (primary_class, ", ".join(sorted(secondary_selects[group])), primary_class, obj_id)
+			tag_name = group + "_Tag"
+			tag_spec = self.get_tag_descriptors().get(tag_name)
+			selects = sorted(secondary_selects[group])
+			if tag_spec is not None:
+				selects.insert(0, "[%s]" % tag_spec[0])
+			querystr = "SELECT [%s], %s WHERE ([%s])==%d" % (primary_class, ", ".join(selects), primary_class, obj_id)
 			result = self.get_query(querystr, silent = True)
 			if not len(result):
 				continue
+			owner_index = None
+			if tag_spec is not None:
+				owner_index = next((idx for idx, column in enumerate(result.columns)
+					if column[0] == tag_spec[0]), None)
+				# Deposit omits columns for classes with no members.
+				if owner_index is None:
+					continue
 			if group not in data:
 				data[group] = []
+			seen_owners = set()
 			for row in result:
+				owner = None
+				if tag_spec is not None:
+					owner_id = row[owner_index][0]
+					if owner_id is None or owner_id in seen_owners:
+						continue
+					seen_owners.add(owner_id)
+					owner = self.get_object(owner_id)
 				item = {}
 				for idx, key in enumerate(result.columns):
 					if key not in name_lookup:
@@ -511,6 +578,8 @@ class LCModel(DCModel):
 						continue
 					item[name_lookup[key]] = row[idx][1]
 				if item:
+					if owner is not None:
+						item[tag_name] = self.load_tags(owner, tag_spec)
 					data[group].append(item)
 		
 		return data
@@ -524,7 +593,10 @@ class LCModel(DCModel):
 		
 		name_lookup = {}  # {(Class, Descriptor): name, ...}
 		primary_class = None # name of Sample class
+		tag_specs = self.get_tag_descriptors()
 		for name, cls, descr in descriptors:
+			if name in tag_specs:
+				continue
 			name_lookup[(cls, descr)] = name
 			if name == self.NAME_ID:
 				primary_class = cls
